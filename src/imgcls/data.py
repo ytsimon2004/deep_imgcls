@@ -1,6 +1,5 @@
-from typing import NamedTuple, Literal
-
-import matplotlib.pyplot as plt
+from typing import NamedTuple
+import tensorflow as tf
 import numpy as np
 import polars as pl
 from typing_extensions import Self
@@ -124,11 +123,32 @@ class ImageClassification(NamedTuple):
             ret.append(label)
         return ret
 
+    # @property
+    # def train_data_array(self):
+    #     return self.train_data['img'].to_numpy()
+
     def as_mean(self) -> pl.DataFrame:
         return self.get_train_label().mean()
 
+    def train_image_stack(self) -> tf.Tensor:
+        train_img = self.train_data['img']
 
+        ret = []
+        for img in train_img:
+            img = tf.image.resize(img, [448, 448])
+            ret.append(img / 255.)
 
-if __name__ == '__main__':
-    clz = ImageClassification.load()
-    print(clz.test_data)
+        return tf.stack(ret)
+
+    def train_label_stack(self):
+        return self.get_train_label().to_numpy()
+
+    def test_image_stack(self) -> tf.Tensor:
+        train_img = self.test_data['img']
+
+        ret = []
+        for img in train_img:
+            img = tf.image.resize(img, [448, 448])
+            ret.append(img / 255.)
+
+        return tf.stack(ret)

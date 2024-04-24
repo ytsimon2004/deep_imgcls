@@ -35,7 +35,6 @@ class RandomClassificationModel:
         """
         if isinstance(y, pl.DataFrame):
             self.distribution = y.mean().row(0)
-            print(self.distribution)
         else:
             self.distribution = np.mean(y, axis=0)
 
