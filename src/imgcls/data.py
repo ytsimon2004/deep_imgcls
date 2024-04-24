@@ -9,7 +9,7 @@ from src.imgcls.io import TRAIN_DIR, TEST_DIR
 
 
 class ImageClassification(NamedTuple):
-    data: pl.DataFrame
+    train_data: pl.DataFrame
     """
     ::
     
@@ -34,68 +34,101 @@ class ImageClassification(NamedTuple):
         └─────┴───────────┴─────────┴──────┴───┴───────┴───────────┴─────────────────┴─────────────────────┘
     """
 
-    dtype: Literal['test', 'train']
+    test_data: pl.DataFrame
+    """
+    ::
+    
+        ┌─────┬───────────┬─────────┬──────┬───┬───────┬───────────┬─────────────────┬─────┐
+        │ Id  ┆ aeroplane ┆ bicycle ┆ bird ┆ … ┆ train ┆ tvmonitor ┆ img             ┆ seg │
+        │ --- ┆ ---       ┆ ---     ┆ ---  ┆   ┆ ---   ┆ ---       ┆ ---             ┆ --- │
+        │ i64 ┆ i64       ┆ i64     ┆ i64  ┆   ┆ i64   ┆ i64       ┆ object          ┆ i32 │
+        ╞═════╪═══════════╪═════════╪══════╪═══╪═══════╪═══════════╪═════════════════╪═════╡
+        │ 0   ┆ -1        ┆ -1      ┆ -1   ┆ … ┆ -1    ┆ -1        ┆ [[[139 130 115] ┆ -1  │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆   [136 127 112] ┆     │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆ …               ┆     │
+        │ 1   ┆ -1        ┆ -1      ┆ -1   ┆ … ┆ -1    ┆ -1        ┆ [[[146  95  92] ┆ -1  │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆   [131  87  84] ┆     │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆ …               ┆     │
+        │ …   ┆ …         ┆ …       ┆ …    ┆ … ┆ …     ┆ …         ┆ …               ┆ …   │
+        │ 748 ┆ -1        ┆ -1      ┆ -1   ┆ … ┆ -1    ┆ -1        ┆ [[[ 30  21  14] ┆ -1  │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆   [ 32  23  16] ┆     │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆ …               ┆     │
+        │ 749 ┆ -1        ┆ -1      ┆ -1   ┆ … ┆ -1    ┆ -1        ┆ [[[184 181 190] ┆ -1  │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆   [182 179 188] ┆     │
+        │     ┆           ┆         ┆      ┆   ┆       ┆           ┆ …               ┆     │
+        └─────┴───────────┴─────────┴──────┴───┴───────┴───────────┴─────────────────┴─────┘
+        
+    
+    """
 
     @classmethod
-    def load_train(cls) -> Self:
-        df = pl.read_csv(TRAIN_DIR / 'train_set.csv')
+    def load(cls) -> Self:
+        train = pl.read_csv(TRAIN_DIR / 'train_set.csv')
 
         img_train = [
             np.load(TRAIN_DIR / 'img' / f'train_{i}.npy')
-            for i, _ in enumerate(df.iter_rows())
+            for i, _ in enumerate(train.iter_rows())
         ]
 
         img_seg = [
             np.load(TRAIN_DIR / 'seg' / f'train_{i}.npy')
-            for i, _ in enumerate(df.iter_rows())
+            for i, _ in enumerate(train.iter_rows())
         ]
 
-        df = df.with_columns(
+        train = train.with_columns(
             img=pl.Series(values=img_train, dtype=pl.Object),
             seg=pl.Series(values=img_seg, dtype=pl.Object)
         )
 
-        return ImageClassification(df, dtype='train')
-
-
-    @classmethod
-    def load_test(cls) -> Self:
-        df = pl.read_csv(TRAIN_DIR / 'train_set.csv')
+        #
+        test = pl.read_csv(TEST_DIR / 'test_set.csv')
 
         img_train = [
             np.load(TEST_DIR / 'img' / f'test_{i}.npy')
-            for i, _ in enumerate(df.iter_rows())
+            for i, _ in enumerate(test.iter_rows())
         ]
 
-        df = df.with_columns(
+        test = test.with_columns(
             img=pl.Series(values=img_train, dtype=pl.Object),
             seg=pl.lit(-1)
         )
 
-        return ImageClassification(df, dtype='train')
+        return ImageClassification(train, test)
 
-    def only_labels(self) -> Self:
-        return self._replace(data=(self.data.drop(['Id', 'img', 'seg'])))
+    def get_train_label(self) -> pl.DataFrame:
+        """train dataset with only label"""
+        return self.train_data.drop(['Id', 'img', 'seg'])
 
     @property
     def n_labels(self) -> int:
-        return self.only_labels().data.shape[1]
-    
-    @property
-    def labels(self) -> list[str]:
-        return self.only_labels().data.columns
+        return self.get_train_label().shape[1]
 
     @property
-    def image_labels(self) -> list[list[str]]:
+    def labels_list(self) -> list[str]:
+        return self.get_train_label().columns
+
+    @property
+    def image_labels_literal(self) -> list[np.ndarray]:
         ret = []
-        labels = np.array(self.labels)
-        for row in self.only_labels().data.iter_rows():
+        labels = np.array(self.labels_list)
+        for row in self.get_train_label().iter_rows():
             label = labels[np.nonzero([it == 1 for it in row])[0]].tolist()
             ret.append(label)
         return ret
 
+    @property
+    def image_labels_int(self) -> list[np.ndarray]:
+        ret = []
+        for row in self.get_train_label().iter_rows():
+            label = np.nonzero([it == 1 for it in row])[0].tolist()
+            ret.append(label)
+        return ret
+
+    def as_mean(self) -> pl.DataFrame:
+        return self.get_train_label().mean()
+
 
 
 if __name__ == '__main__':
-    clz = ImageClassification.load_test()
-    print(clz.data)
+    clz = ImageClassification.load()
+    print(clz.test_data)
