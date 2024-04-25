@@ -1,7 +1,8 @@
 from typing import NamedTuple
-import tensorflow as tf
+
 import numpy as np
 import polars as pl
+import tensorflow as tf
 from typing_extensions import Self
 
 from src.imgcls.io import TRAIN_DIR, TEST_DIR
@@ -140,7 +141,7 @@ class ImageClassification(NamedTuple):
 
         return tf.stack(ret)
 
-    def train_label_stack(self):
+    def train_label_stack(self) -> np.ndarray:
         return self.get_train_label().to_numpy()
 
     def test_image_stack(self) -> tf.Tensor:
@@ -148,7 +149,7 @@ class ImageClassification(NamedTuple):
 
         ret = []
         for img in train_img:
-            img = tf.image.resize(img, [448, 448])
+            img = tf.image.resize(img, [500, 500])
             ret.append(img / 255.)
 
         return tf.stack(ret)

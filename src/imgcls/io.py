@@ -1,6 +1,7 @@
 from pathlib import Path
 
 __all__ = [
+    'CACHE_DIRECTORY',
     'TRAIN_DIR',
     'TEST_DIR',
 ]
