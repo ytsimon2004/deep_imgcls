@@ -22,7 +22,7 @@ def generate_yolov5_yml(root_dir: str | None = None,
         'train': train_dir,
         'val': val_dir,
         'test': test_dir,
-        'name': create_label_dict()
+        'names': create_label_dict()
 
     }
 

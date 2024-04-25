@@ -1,10 +1,8 @@
-import math
 from pathlib import Path
 from typing import TypeAlias
 
 import cv2
 import numpy as np
-import polars as pl
 from matplotlib import pyplot as plt, patches
 from skimage.measure import regionprops, label
 from tqdm import tqdm
@@ -52,7 +50,8 @@ def gen_yolo4_label_file(resize_dim: tuple[int, int] | None = (500, 500),
 
             plt.show()
 
-        write_yolo_label_txt(seg, detected, resize_dim if resize_dim is not None else im.shape)
+        else:
+            write_yolo_label_txt(seg, detected, resize_dim if resize_dim is not None else im.shape)
 
 
 DETECT_LABEL_TYPE: TypeAlias = dict[int, list[tuple[float, float, float, float]]]  # cls: [xc, yc, w, h]
@@ -76,6 +75,9 @@ def detect_segmented_objects(seg_arr: np.ndarray) -> DETECT_LABEL_TYPE:
     # Exclude the background class, usually represented by 0
     object_classes = object_classes[object_classes != 0]
 
+    # object_classes -= 1
+    print(f'{object_classes=}')
+
     for object_class in object_classes:
         # Create a mask for the current class
         class_mask = (seg_arr == object_class)
@@ -94,7 +96,7 @@ def detect_segmented_objects(seg_arr: np.ndarray) -> DETECT_LABEL_TYPE:
             height = y1 - y0
             class_objects_info.append((x_center, y_center, width, height))
 
-        objects_info[object_class] = class_objects_info
+        objects_info[object_class - 1] = class_objects_info
 
     return objects_info
 
