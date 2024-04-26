@@ -10,5 +10,5 @@ test = '/Users/yuting/.cache/comvis/imgcls/test/img_png'
 # for file in Path(test).glob('*.png'):
 #     model(file)
 
-results = model.predict(source=test, save=True)
+results = model.predict(source=test, save=True, save_txt=True)
 
