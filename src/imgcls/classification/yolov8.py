@@ -3,11 +3,13 @@ from typing import final, TypeAlias
 
 import cv2
 import numpy as np
+import torch
 import yaml
 from PIL import Image
 from matplotlib import pyplot as plt, patches
 from skimage.measure import regionprops, label
 from tqdm import tqdm
+from ultralytics import YOLO
 
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
 from imgcls.util import fprint
@@ -23,7 +25,9 @@ class YoloUltralyticsPipeline:
 
     def __init__(self,
                  root_dir: str | Path, *,
-                 resize_dim: tuple[int, int] | None = None):
+                 resize_dim: tuple[int, int] | None = None,
+                 use_gpu: bool = True,
+                 epochs: int = 3):
         """
 
         :param root_dir:
@@ -32,13 +36,32 @@ class YoloUltralyticsPipeline:
         self.image_dir = ImageClsDir(root_dir)
         self.resize_dim = resize_dim
 
+        if use_gpu:
+            pass  # TODO
+
+        self._epochs = epochs
+
     def run(self):
         # self.clone_png_dir()
         # self.gen_yaml(output=self.image_dir.root_dir / 'dataset.yml')
-        self.gen_label_txt(debug_mode=False)
+        # self.gen_label_txt(debug_mode=False)
+        model = self.yolo_train()
+        self.yolo_predict(model)
+
+    @property
+    def device(self) -> torch.device:
+        if torch.cuda.is_available():
+            fprint('Process using cuda GPU')
+            return torch.device('cuda')
+        elif check_mps_available():
+            fprint('Process using mps GPU')
+            return torch.device('mps')
+        else:
+            fprint(f'GPU not available, using CPU instead')
+            return torch.device('cpu')
 
     def clone_png_dir(self):
-        fprint('STATE 1 -> clone dir')
+        fprint('<STATE 1> -> clone dir')
 
         _clone_png_dir(self.image_dir.train_img, self.resize_dim)
         _clone_png_dir(self.image_dir.train_seg, self.resize_dim)
@@ -51,13 +74,13 @@ class YoloUltralyticsPipeline:
         :param output: output filepath of the yaml file
         :return:
         """
-        fprint('STATE 2 -> generate yaml file')
+        fprint('<STATE 2> -> generate yaml file')
 
         dy = {
             'path': str(self.image_dir.root_dir),
-            'train': str(self.image_dir.train_dir),
-            'val': str(self.image_dir.train_dir),
-            'test': str(self.image_dir.test_img),
+            'train': str(self.image_dir.train_img_png),
+            'val': str(self.image_dir.train_img_png),
+            'test': str(self.image_dir.test_img_png),
             'names': self._create_label_dict()
         }
 
@@ -81,7 +104,7 @@ class YoloUltralyticsPipeline:
 
         :return:
         """
-        fprint('STATE 3 -> auto annotate segmentation file and generate label txt')
+        fprint('<STATE 3> -> auto annotate segmentation file and generate label txt')
         iter_seg = tqdm(self.image_dir.train_seg.glob('*.npy'),
                         unit='file',
                         ncols=80,
@@ -122,6 +145,24 @@ class YoloUltralyticsPipeline:
                 write_yolo_label_txt(seg, detected,
                                      self.resize_dim if self.resize_dim is not None else im.shape,
                                      output_dir=self.image_dir.train_img_png)
+
+    def yolo_train(self, save: bool = True) -> YOLO:
+        fprint('<STATE 4> -> Train the dataset using yolov8')
+        model = YOLO('yolov8n.pt')
+        # model = model.to(device=self.device)
+        ret = model.train(data=self.image_dir.root_dir / 'dataset.yml', epochs=self._epochs)  # TODO check return
+        ret = model.val()  # TODO check return
+
+        if save:
+            model.export(format='onnx')
+
+        return model
+
+    def yolo_predict(self, model, save_plot: bool = True, save_txt: bool = True):
+        model.predict(source=self.image_dir.test_img_png, save=save_plot, save_txt=save_txt)
+
+    def create_predicted_csv(self):
+        pass
 
 
 def _clone_png_dir(directory: Path | str,
@@ -205,6 +246,19 @@ def write_yolo_label_txt(img_filepath: str | Path,
                 height_normalized = h / height
                 content = f'{cls} {x_center_normalized} {y_center_normalized} {width_normalized} {height_normalized}\n'
                 file.write(content)
+
+
+def check_mps_available() -> bool:
+    if not torch.backends.mps.is_available():
+        if not torch.backends.mps.is_built():
+            fprint('MPS not available because pytorch install not built with MPS enable', vtype='warning')
+        else:
+            fprint('MPS not available because current MacOs version is not 12.3+,'
+                   ' or do not have MPS-enabled device on this machine', vtype='warning')
+        return False
+    else:
+        fprint('MPS is available', vtype='pass')
+        return True
 
 
 def main():
