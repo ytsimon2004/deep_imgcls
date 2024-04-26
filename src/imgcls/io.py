@@ -66,3 +66,11 @@ class ImageClsDir(NamedTuple):
     @property
     def test_img_png(self) -> Path:
         return self.ensure_dir(self.test_dir / 'img_png')
+
+    # ================ #
+    # Model Train/Eval #
+    # ================ #
+
+    @property
+    def run_dir(self) -> Path:
+        return self.root_dir / 'run'

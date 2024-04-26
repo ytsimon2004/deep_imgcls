@@ -26,8 +26,9 @@ class YoloUltralyticsPipeline:
     def __init__(self,
                  root_dir: str | Path, *,
                  resize_dim: tuple[int, int] | None = None,
-                 use_gpu: bool = True,
-                 epochs: int = 3):
+                 use_gpu: bool = False,
+                 epochs: int = 3,
+                 batch_size: int = 64):
         """
 
         :param root_dir:
@@ -36,10 +37,24 @@ class YoloUltralyticsPipeline:
         self.image_dir = ImageClsDir(root_dir)
         self.resize_dim = resize_dim
 
-        if use_gpu:
-            pass  # TODO
-
+        # training parameter
         self._epochs = epochs
+        self._lr0 = 0.01
+        self._batch = batch_size
+
+        # resources
+        if use_gpu:
+            if torch.cuda.is_available():
+                fprint('Process using cuda GPU')
+                self._device = torch.device('cuda')
+            elif check_mps_available():  # use cpu mode or increase the batch size if NMS time issue
+                fprint('Process using mps GPU')
+                self._device = torch.device('mps')
+                self._lr0 = 0.00025
+        else:
+            self._device = torch.device('cpu')
+
+
 
     def run(self):
         # self.clone_png_dir()
@@ -47,18 +62,6 @@ class YoloUltralyticsPipeline:
         # self.gen_label_txt(debug_mode=False)
         model = self.yolo_train()
         self.yolo_predict(model)
-
-    @property
-    def device(self) -> torch.device:
-        if torch.cuda.is_available():
-            fprint('Process using cuda GPU')
-            return torch.device('cuda')
-        elif check_mps_available():
-            fprint('Process using mps GPU')
-            return torch.device('mps')
-        else:
-            fprint(f'GPU not available, using CPU instead')
-            return torch.device('cpu')
 
     def clone_png_dir(self):
         fprint('<STATE 1> -> clone dir')
@@ -129,7 +132,7 @@ class YoloUltralyticsPipeline:
                     raw = Image.open(str(file))
                     ax.imshow(raw)
                 else:
-                    ax.imshow(raw)
+                    ax.imshow(im)
 
                 colors = plt.cm.rainbow(np.linspace(0, 1, len(detected)))
                 for cls, info in detected.items():
@@ -149,8 +152,16 @@ class YoloUltralyticsPipeline:
     def yolo_train(self, save: bool = True) -> YOLO:
         fprint('<STATE 4> -> Train the dataset using yolov8')
         model = YOLO('yolov8n.pt')
-        # model = model.to(device=self.device)
-        ret = model.train(data=self.image_dir.root_dir / 'dataset.yml', epochs=self._epochs)  # TODO check return
+
+        # TODO check return
+        ret = model.train(data=self.image_dir.root_dir / 'dataset.yml',
+                          device=self._device,
+                          batch=self._batch,
+                          lr0=self._lr0,
+                          project=self.image_dir.run_dir,
+                          epochs=self._epochs,
+                          cache=True)
+
         ret = model.val()  # TODO check return
 
         if save:
