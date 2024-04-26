@@ -1,7 +1,12 @@
+from datetime import datetime
+from typing import Literal
+
 import polars as pl
+from colorama import Fore, Style
 
+__all__ = ['printdf',
+           'fprint']
 
-__all__ = ['printdf']
 
 def printdf(df: pl.DataFrame,
             nrows: int | None = None,
@@ -30,3 +35,53 @@ def printdf(df: pl.DataFrame,
             print(df)
 
         return df.__repr__()
+
+
+def fprint(*msgs,
+           vtype: Literal['info', 'io', 'warning', 'error', 'pass'] = 'info',
+           timestamp: bool = True,
+           **kwarg) -> None:
+    """
+    Formatting print with different colors based on verbose type
+
+    :param msgs:
+    :param vtype: verbose type
+    :param timestamp:
+    :return:
+    """
+
+    if vtype == 'error':
+        prefix = '[ERROR]'
+        color = 'red'
+    elif vtype == 'warning':
+        prefix = '[WARNING] '
+        color = 'yellow'
+    elif vtype == 'io':
+        prefix = '[IO] '
+        color = 'magenta'
+    elif vtype == 'info':
+        prefix = '[INFO]'
+        color = 'cyan'
+    elif vtype == 'pass':
+        prefix = '[PASS]'
+        color = 'green'
+    else:
+        raise ValueError(f'{vtype}')
+
+    try:
+        fg_color = getattr(Fore, color.upper())
+    except AttributeError:
+        fg_color = Fore.WHITE
+
+    msg = fg_color + prefix
+    if timestamp:
+        msg += f"[{datetime.today().strftime('%y-%m-%d %H:%M:%S')}] - "
+
+    try:
+        out = f"{''.join(msgs)}\n"
+    except TypeError:
+        out = f'{msgs}'
+
+    msg += out
+    msg += Style.RESET_ALL
+    print(msg, **kwarg)
