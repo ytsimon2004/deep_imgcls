@@ -74,3 +74,11 @@ class ImageClsDir(NamedTuple):
     @property
     def run_dir(self) -> Path:
         return self.root_dir / 'run'
+
+    @property
+    def predict_dir(self) -> Path:
+        return self.run_dir / 'predict'
+
+    @property
+    def predict_label_dir(self) -> Path:
+        return self.predict_dir / 'labels'

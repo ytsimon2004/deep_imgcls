@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import final, TypeAlias
+from typing import final, TypeAlias, Final
 
 import cv2
 import numpy as np
@@ -9,10 +9,11 @@ from PIL import Image
 from matplotlib import pyplot as plt, patches
 from skimage.measure import regionprops, label
 from tqdm import tqdm
+import polars as pl
 from ultralytics import YOLO
 
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
-from imgcls.util import fprint
+from imgcls.util import fprint, printdf
 
 ClassInt: TypeAlias = int
 ClassName: TypeAlias = str
@@ -25,10 +26,11 @@ class YoloUltralyticsPipeline:
 
     def __init__(self,
                  root_dir: str | Path, *,
+                 model_path: str | Path | None = None,
                  resize_dim: tuple[int, int] | None = None,
                  use_gpu: bool = False,
-                 epochs: int = 3,
-                 batch_size: int = 64):
+                 epochs: int = 5,
+                 batch_size: int = 32):
         """
 
         :param root_dir:
@@ -37,10 +39,18 @@ class YoloUltralyticsPipeline:
         self.image_dir = ImageClsDir(root_dir)
         self.resize_dim = resize_dim
 
+        # label_dict, order sensitive
+        df = self.image_dir.train_dataframe.drop('Id')
+        self.label_dict: Final[dict[ClassInt, ClassName]] = {
+            i: df.columns[i]
+            for i in range(df.shape[1])
+        }
+
         # training parameter
         self._epochs = epochs
         self._lr0 = 0.01
         self._batch = batch_size
+        self.model = model_path  # if already fine-tuned model path
 
         # resources
         if use_gpu:
@@ -54,14 +64,21 @@ class YoloUltralyticsPipeline:
         else:
             self._device = torch.device('cpu')
 
-
-
     def run(self):
-        # self.clone_png_dir()
-        # self.gen_yaml(output=self.image_dir.root_dir / 'dataset.yml')
-        # self.gen_label_txt(debug_mode=False)
-        model = self.yolo_train()
-        self.yolo_predict(model)
+        # if fine-tuned model already specified
+        if self.model is None:
+            self.clone_png_dir()
+            self.gen_yaml(output=self.image_dir.root_dir / 'dataset.yml')
+            self.gen_label_txt(debug_mode=False)
+            self.model = self.yolo_train()
+        else:
+            self.yolo_predict(self.model)
+
+        self.create_predicted_csv()
+
+    @property
+    def n_test(self) -> int:
+        return len(list(self.image_dir.test_img_png.glob('*.png')))
 
     def clone_png_dir(self):
         fprint('<STATE 1> -> clone dir')
@@ -84,27 +101,22 @@ class YoloUltralyticsPipeline:
             'train': str(self.image_dir.train_img_png),
             'val': str(self.image_dir.train_img_png),
             'test': str(self.image_dir.test_img_png),
-            'names': self._create_label_dict()
+            'names': self.label_dict
         }
 
         with open(output, 'w') as file:
             yaml.dump(dy, file, sort_keys=False)
 
-    def _create_label_dict(self) -> dict[ClassInt, ClassName]:
-        df = self.image_dir.train_dataframe.drop('Id')
-        return {
-            i: df.columns[i]
-            for i in range(df.shape[1])
-        }
-
     def gen_label_txt(self,
-                      debug_mode: bool = False,
+                      debug_mode: bool = True,
                       debug_show_raw: bool = True) -> None:
         """
         Detect the object edge from seg files and generate the yolo4 required label file for train dataset ::
 
         <class_id> <xc> <y_center> <width> <height>
 
+        :param debug_mode: debug mode to see the train dataset segmentation result
+        :param debug_show_raw: If true, show the debug mode using raw image. otherwise, show the segmented figure
         :return:
         """
         fprint('<STATE 3> -> auto annotate segmentation file and generate label txt')
@@ -124,23 +136,33 @@ class YoloUltralyticsPipeline:
             if debug_mode:
                 fprint(f'IMAGE -> {seg.stem}')
                 fprint(f'DETECTED RESULT -> {detected}')
-                fig, ax = plt.subplots()
+                fig, ax = plt.subplots(1, 2)
 
-                if debug_show_raw:
-                    _, _, idx = seg.stem.partition('_')
-                    file = list(self.image_dir.train_img_png.glob(f'*{idx}.png'))[0]
-                    raw = Image.open(str(file))
-                    ax.imshow(raw)
-                else:
-                    ax.imshow(im)
+                # query raw
+                _, _, idx = seg.stem.partition('_')
+                file = list(self.image_dir.train_img_png.glob(f'*_{idx}.png'))[0]
+                raw = Image.open(str(file))
+                ax[0].imshow(raw)
 
-                colors = plt.cm.rainbow(np.linspace(0, 1, len(detected)))
+                ax[1].imshow(im)
+
+                # draw
+                colors = plt.cm.rainbow(np.linspace(0, 1, 20))
+                legend_handles = []
                 for cls, info in detected.items():
                     color = colors[cls % len(colors)]  # cycle through colors
                     for (xc, yc, width, height) in info:
                         rect = patches.Rectangle((xc - width / 2, yc - height / 2),
-                                                 width, height, linewidth=1, edgecolor=color, facecolor='none')
-                        ax.add_patch(rect)
+                                                 width, height,
+                                                 linewidth=1,
+                                                 edgecolor=color,
+                                                 facecolor='none')
+                        ax[0].add_patch(rect)
+
+                    legend_patch = patches.Patch(color=color, label=self.label_dict[cls])
+                    legend_handles.append(legend_patch)
+
+                ax[0].legend(handles=legend_handles, loc='best')
 
                 plt.show()
 
@@ -155,9 +177,9 @@ class YoloUltralyticsPipeline:
 
         # TODO check return
         ret = model.train(data=self.image_dir.root_dir / 'dataset.yml',
-                          device=self._device,
-                          batch=self._batch,
-                          lr0=self._lr0,
+                          # device=self._device,
+                          # batch=self._batch,
+                          # lr0=self._lr0,
                           project=self.image_dir.run_dir,
                           epochs=self._epochs,
                           cache=True)
@@ -169,11 +191,49 @@ class YoloUltralyticsPipeline:
 
         return model
 
-    def yolo_predict(self, model, save_plot: bool = True, save_txt: bool = True):
-        model.predict(source=self.image_dir.test_img_png, save=save_plot, save_txt=save_txt)
+    def yolo_predict(self, model: YOLO | str,
+                     save_plot: bool = True,
+                     save_txt: bool = True):
+        fprint('<STATE 5> -> Predicted result using test dataset')
+        if isinstance(model, (Path, str)):
+            model = YOLO(model)
 
-    def create_predicted_csv(self):
-        pass
+        model.predict(source=self.image_dir.test_img_png,
+                      save=save_plot,
+                      save_txt=save_txt,
+                      project=self.image_dir.run_dir)
+
+    def create_predicted_csv(self) -> None:
+        fprint('<STATE 6> -> Write predicted result to csv')
+
+        ret = {}
+        for txt in self.image_dir.predict_label_dir.glob('test*.txt'):
+            classes = set()
+            with open(txt, 'r') as file:
+                for line in file:
+                    cls = line.split(' ')[0]
+                    classes.add(cls)
+
+            _, _, idx = txt.stem.partition('_')
+            ret[idx] = list(classes)
+
+        ret = dict(sorted(ret.items()))
+
+        #
+        dy = dict(Id=np.arange(self.n_test))
+        for i, field in enumerate(self.label_dict.values()):
+            dy[field] = np.full(self.n_test, 0)
+
+        df = pl.DataFrame(dy)
+
+        for i, classes in ret.items():
+            for cls in classes:
+                df[int(i), self.label_dict[int(cls)]] = 1
+
+        dst = self.image_dir.run_dir / 'test_set.csv'
+        df.write_csv(dst)
+        fprint(f'Successful create result in {dst}', vtype='io')
+
 
 
 def _clone_png_dir(directory: Path | str,
@@ -201,13 +261,14 @@ def _clone_png_dir(directory: Path | str,
         plt.imsave(out, img)
 
 
-def detect_segmented_objects(seg_arr: np.ndarray) -> DetectClassSquare:
+def detect_segmented_objects(seg_arr: np.ndarray, min_area: int = 500) -> DetectClassSquare:
     """
     Detects objects in a segmented image array and returns their center, width, and height.
 
-    TODO some could be merged for optimization
+    TODO some could be merged for optimization if needed
 
-    :param seg_arr: Numpy array of the segmented image where different values represent different objects.
+    :param seg_arr: array of the segmented image where different values represent different objects
+    :param min_area: minimum area threshold to consider an object. smaller areas are ignored
     :return: A dictionary where keys are object classes and values are lists of tuples containing
     (x_center, y_center, width, height) for each object of that class.
     """
@@ -228,6 +289,10 @@ def detect_segmented_objects(seg_arr: np.ndarray) -> DetectClassSquare:
 
         class_objects_info = []
         for region in regions:
+
+            if region.area < min_area:
+                continue
+
             y0, x0, y1, x1 = region.bbox
             x_center = (x0 + x1) / 2
             y_center = (y0 + y1) / 2
@@ -274,7 +339,8 @@ def check_mps_available() -> bool:
 
 def main():
     root = CACHE_DIRECTORY
-    yolo = YoloUltralyticsPipeline(root, resize_dim=(500, 500))
+    path = '/Users/yuting/.cache/comvis/imgcls/run/train/weights/best.pt'
+    yolo = YoloUltralyticsPipeline(root, resize_dim=(500, 500), model_path=path)
     yolo.run()
 
 
