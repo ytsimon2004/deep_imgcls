@@ -3,17 +3,19 @@ from typing import final, TypeAlias, Final
 
 import cv2
 import numpy as np
+import polars as pl
 import torch
 import yaml
 from PIL import Image
 from matplotlib import pyplot as plt, patches
 from skimage.measure import regionprops, label
 from tqdm import tqdm
-import polars as pl
 from ultralytics import YOLO
 
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
-from imgcls.util import fprint, printdf
+from imgcls.util import fprint
+
+__all__ = ['YoloUltralyticsPipeline']
 
 ClassInt: TypeAlias = int
 ClassName: TypeAlias = str
@@ -22,7 +24,11 @@ DetectClassSquare: TypeAlias = dict[ClassInt, list[tuple[float, float, float, fl
 
 @final
 class YoloUltralyticsPipeline:
-    """TODO"""
+    """Custom pipeline for implementing the YOLOv8 from ultralytics
+
+    .. seealso :: `<https://docs.ultralytics.com/modes/train/>`_
+
+    """
 
     def __init__(self,
                  root_dir: str | Path, *,
@@ -34,7 +40,11 @@ class YoloUltralyticsPipeline:
         """
 
         :param root_dir:
+        :param model_path: model path (If already trained)
         :param resize_dim: (w,h) resize
+        :param use_gpu: whether use gpu for fine-tuned the model
+        :param epochs: number of the training epoch
+        :param batch_size: training bathc size
         """
         self.image_dir = ImageClsDir(root_dir)
         self.resize_dim = resize_dim
@@ -233,7 +243,6 @@ class YoloUltralyticsPipeline:
         dst = self.image_dir.run_dir / 'test_set.csv'
         df.write_csv(dst)
         fprint(f'Successful create result in {dst}', vtype='io')
-
 
 
 def _clone_png_dir(directory: Path | str,
