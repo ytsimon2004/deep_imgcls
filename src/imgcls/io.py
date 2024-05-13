@@ -17,7 +17,36 @@ TEST_DIR = CACHE_DIRECTORY / 'test'
 
 class ImageClsDir(NamedTuple):
     """Class for folder structure for train/test data
-    TODO tree scheme
+
+    DataFolder Structure ::
+
+        <root_dir>
+        ├── dataset.yml (1)
+        ├── run (2)
+        │   ├── predict
+        │   ├── test_set.csv
+        │   ├── train
+        │   └── *yolov8s.pt
+        │
+        ├── test (3)
+        │   ├── img
+        │   ├── img_png
+        │   └── test_set.csv
+        │
+        └── train (4)
+            ├── img
+            ├── img_png
+            ├── seg
+            ├── seg_png
+            └── train_set.csv
+
+        ---------------------------
+
+        (1) config yaml file for the custom path info/image labels
+        (2) directory for model/train/evaluation output files
+        (3) directory for test dataset
+        (4) directory for train dataset
+
     """
     root_dir: Path
 

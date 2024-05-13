@@ -1,6 +1,6 @@
 from pathlib import Path
 from pprint import pprint
-from typing import final, TypeAlias, Final
+from typing import final, TypeAlias, Final, Literal
 
 import cv2
 import numpy as np
@@ -22,6 +22,8 @@ ClassInt: TypeAlias = int
 ClassName: TypeAlias = str
 DetectClassSquare: TypeAlias = dict[ClassInt, list[tuple[float, float, float, float]]]  # cls: [xc, yc, w, h]
 
+YOLO8_MODEL_TYPE = Literal['yolov8n', 'yolov8s', 'yolov8m', 'yolov8l', 'yolov8x']
+
 
 @final
 class YoloUltralyticsPipeline:
@@ -36,6 +38,7 @@ class YoloUltralyticsPipeline:
                  model_path: str | Path | None = None,
                  resize_dim: tuple[int, int] | None = None,
                  use_gpu: bool = False,
+                 model_type: YOLO8_MODEL_TYPE = 'yolov8n',
                  epochs: int = 5,
                  batch_size: int = 32):
         """
@@ -58,6 +61,7 @@ class YoloUltralyticsPipeline:
         }
 
         # training parameter
+        self.model_type = model_type
         self._epochs = epochs
         self._lr0 = 0.01
         self._batch = batch_size
@@ -73,7 +77,7 @@ class YoloUltralyticsPipeline:
                 self._device = torch.device('mps')
                 self._lr0 = 0.00025
         else:
-            self._device = torch.device('cpu')
+            self._device = None  # torch.device('cpu')?
 
     def run(self):
         # if fine-tuned model already specified
@@ -81,10 +85,9 @@ class YoloUltralyticsPipeline:
             self.clone_png_dir()
             self.gen_yaml()
             self.gen_label_txt(debug_mode=False)
-            self.model = self.yolo_train()
-        else:
-            self.yolo_predict(self.model)
+            self.model = self.yolo_train(model_type=self.model_type)
 
+        self.yolo_predict(self.model)
         self.create_predicted_csv()
 
     @property
@@ -194,20 +197,22 @@ class YoloUltralyticsPipeline:
                                  self.resize_dim if self.resize_dim is not None else im.shape,
                                  output_dir=self.image_dir.train_img_png)
 
-    def yolo_train(self, save: bool = True) -> YOLO:
-        fprint('<STATE 4> -> Train the dataset using yolov8')
-        model = YOLO('yolov8n.pt')
+    def yolo_train(self, model_type: YOLO8_MODEL_TYPE = 'yolov8n',
+                   save: bool = True) -> YOLO:
+        """Load a pretrained model for training"""
+        fprint(f'<STATE 4> -> Train the dataset using {model_type}')
+        model_path = (self.image_dir.run_dir / model_type).with_suffix('.pt')
+        model = YOLO(model_path)
 
-        # TODO check return
-        ret = model.train(data=self.image_dir.root_dir / 'dataset.yml',
-                          # device=self._device,
-                          # batch=self._batch,
-                          # lr0=self._lr0,
-                          project=self.image_dir.run_dir,
-                          epochs=self._epochs,
-                          cache=True)
+        model.train(data=self.image_dir.root_dir / 'dataset.yml',
+                    # device=self._device,
+                    batch=self._batch,
+                    lr0=self._lr0,
+                    project=self.image_dir.run_dir,
+                    epochs=self._epochs,
+                    cache=True)
 
-        ret = model.val()  # TODO check return
+        model.val()
 
         if save:
             model.export(format='onnx')
@@ -362,7 +367,7 @@ def check_mps_available() -> bool:
 
 def main():
     root = CACHE_DIRECTORY
-    path = '/Users/yuting/.cache/comvis/imgcls/run/train/weights/best.pt'
+    path = ...
     yolo = YoloUltralyticsPipeline(root, resize_dim=(500, 500), model_path=path)
     yolo.run()
 

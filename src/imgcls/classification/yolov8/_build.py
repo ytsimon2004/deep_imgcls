@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from imgcls.util import printdf
 
-
+# TODO not yet done
 class YOLOClassificationModel(AbstractClassificationModel):
 
     def __init__(self, *args, **kwargs):
@@ -42,11 +42,6 @@ def _init_yolo_from_scratch(n_classes: int):
     ])
 
     return model
-
-
-def _init_yolo_from_pretrain():
-    """fine tune the model from other's pretrained model"""
-    pass
 
 
 

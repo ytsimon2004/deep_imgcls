@@ -6,6 +6,13 @@ from typing_extensions import Self
 
 from imgcls.data import ImageClassification
 
+__all__ = [
+    'ImageArrayList',
+    'ClassArrayList',
+    'AbstractClassificationModel'
+]
+
+
 ImageArrayList: TypeAlias = list[np.ndarray]  # n x (height x width x 3)
 ClassArrayList: TypeAlias = list[np.ndarray]  # n x (nb_classes)
 
