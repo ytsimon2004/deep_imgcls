@@ -1,4 +1,5 @@
 from pathlib import Path
+from pprint import pprint
 from typing import final, TypeAlias, Final
 
 import cv2
@@ -78,7 +79,7 @@ class YoloUltralyticsPipeline:
         # if fine-tuned model already specified
         if self.model is None:
             self.clone_png_dir()
-            self.gen_yaml(output=self.image_dir.root_dir / 'dataset.yml')
+            self.gen_yaml()
             self.gen_label_txt(debug_mode=False)
             self.model = self.yolo_train()
         else:
@@ -90,21 +91,26 @@ class YoloUltralyticsPipeline:
     def n_test(self) -> int:
         return len(list(self.image_dir.test_img_png.glob('*.png')))
 
-    def clone_png_dir(self):
+    def clone_png_dir(self) -> None:
+        """Clone batch raw .npy files to png in a separated folder, image resize if needed"""
         fprint('<STATE 1> -> clone dir')
 
         _clone_png_dir(self.image_dir.train_img, self.resize_dim)
         _clone_png_dir(self.image_dir.train_seg, self.resize_dim)
         _clone_png_dir(self.image_dir.test_img)  # no need resize for prediction
 
-    def gen_yaml(self, output: Path | str) -> None:
+    def gen_yaml(self, output: Path | str | None = None, verbose: bool = False) -> None:
         """
         Generate the yaml for yolov8 config
 
         :param output: output filepath of the yaml file
+        :param verbose: show output verbose
         :return:
         """
         fprint('<STATE 2> -> generate yaml file')
+
+        if output is None:
+            output = self.image_dir.root_dir / 'dataset.yml'
 
         dy = {
             'path': str(self.image_dir.root_dir),
@@ -115,22 +121,29 @@ class YoloUltralyticsPipeline:
         }
 
         with open(output, 'w') as file:
-            yaml.dump(dy, file, sort_keys=False)
+            yaml.safe_dump(dy, file, sort_keys=False)
 
-    def gen_label_txt(self,
-                      debug_mode: bool = True,
-                      debug_show_raw: bool = True) -> None:
+        if verbose:
+            with open(output, 'rb') as file:
+                config = yaml.safe_load(file)
+                pprint(config)
+
+    def gen_label_txt(self, debug_mode: bool = True) -> None:
         """
-        Detect the object edge from seg files and generate the yolo4 required label file for train dataset ::
+        Detect the object edge from seg files and generate the yolov8 required label file for train dataset ::
 
         <class_id> <xc> <y_center> <width> <height>
 
         :param debug_mode: debug mode to see the train dataset segmentation result
-        :param debug_show_raw: If true, show the debug mode using raw image. otherwise, show the segmented figure
         :return:
         """
         fprint('<STATE 3> -> auto annotate segmentation file and generate label txt')
-        iter_seg = tqdm(self.image_dir.train_seg.glob('*.npy'),
+
+        files = sorted(list(self.image_dir.train_seg.glob('*.npy')),
+                       key=lambda it: int(it.stem.split('_')[1]))
+
+        iter_seg = tqdm(files,
+                        total=len(files),
                         unit='file',
                         ncols=80,
                         desc='detect edge')
@@ -176,10 +189,10 @@ class YoloUltralyticsPipeline:
 
                 plt.show()
 
-            else:
-                write_yolo_label_txt(seg, detected,
-                                     self.resize_dim if self.resize_dim is not None else im.shape,
-                                     output_dir=self.image_dir.train_img_png)
+            #
+            write_yolo_label_txt(seg, detected,
+                                 self.resize_dim if self.resize_dim is not None else im.shape,
+                                 output_dir=self.image_dir.train_img_png)
 
     def yolo_train(self, save: bool = True) -> YOLO:
         fprint('<STATE 4> -> Train the dataset using yolov8')
@@ -246,20 +259,21 @@ class YoloUltralyticsPipeline:
 
 
 def _clone_png_dir(directory: Path | str,
-                   resize_dim: tuple[int, int] | None = None):
+                   resize_dim: tuple[int, int] | None = None) -> None:
     """Clone batch raw .npy files to png in a separated folder, image resize if needed
 
     :param directory: directory contains .npy files
-    :param resize_dim: resize dim in (w, h)
+    :param resize_dim: resize dim in (w, h) if not None
     """
     dst = Path(directory).parent / f'{directory.stem}_png'
     if not dst.exists():
         dst.mkdir()
 
-    iter_file = tqdm(Path(directory).glob('*.npy'),
+    files = list(Path(directory).glob('*.npy'))
+    iter_file = tqdm(files,
+                     total=len(files),
                      unit='file',
-                     ncols=80,
-                     desc=f'clone {directory} to png')
+                     desc=f'clone <{directory}> to png in <{dst}>')
 
     for file in iter_file:
         img = np.load(file)

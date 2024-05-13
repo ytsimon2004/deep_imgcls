@@ -1,11 +1,51 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 import polars as pl
 from colorama import Fore, Style
 
-__all__ = ['printdf',
+__all__ = ['uglob',
+           'printdf',
            'fprint']
+
+
+def uglob(directory: Path,
+          pattern: str,
+          sort: bool = True,
+          is_dir: bool = False) -> Path:
+    """
+    Unique glob the pattern in a directory
+
+    :param directory: directory
+    :param pattern: pattern string
+    :param sort: if sort
+    :param is_dir: only return if is a directory
+    :return: unique path
+    """
+    if not isinstance(directory, Path):
+        directory = Path(directory)
+
+    if not directory.exists():
+        raise FileNotFoundError(f'{directory} not exit')
+
+    if not directory.is_dir():
+        raise NotADirectoryError(f'{directory} is not a directory')
+
+    f = list(directory.glob(pattern))
+
+    if is_dir:
+        f = [ff for ff in f if ff.is_dir()]
+
+    if sort:
+        f.sort()
+
+    if len(f) == 0:
+        raise FileNotFoundError(f'{directory} not have pattern: {pattern}')
+    elif len(f) == 1:
+        return f[0]
+    else:
+        raise RuntimeError(f'multiple files were found in {directory} in pattern {pattern} >>> {f}')
 
 
 def printdf(df: pl.DataFrame,
