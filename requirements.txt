@@ -1,0 +1,9 @@
+ultralytics==8.2.2
+pillow
+matplotlib
+scikit-image
+torch
+polars
+opencv-python
+tqdm
+typing-extensions
