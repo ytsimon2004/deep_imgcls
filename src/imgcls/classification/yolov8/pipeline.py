@@ -35,15 +35,16 @@ class YoloUltralyticsPipeline:
 
     def __init__(self,
                  root_dir: str | Path, *,
+                 model_type: YOLO8_MODEL_TYPE = 'yolov8n',
                  model_path: str | Path | None = None,
                  resize_dim: tuple[int, int] | None = None,
                  use_gpu: bool = False,
-                 model_type: YOLO8_MODEL_TYPE = 'yolov8n',
-                 epochs: int = 5,
-                 batch_size: int = 32):
+                 epochs: int = 10,
+                 batch_size: int = 128):
         """
 
         :param root_dir:
+        :param model_type: {'yolov8n', 'yolov8s', 'yolov8m', 'yolov8l', 'yolov8x'}
         :param model_path: model path (If already trained)
         :param resize_dim: (w,h) resize
         :param use_gpu: whether use gpu for fine-tuned the model
@@ -62,10 +63,11 @@ class YoloUltralyticsPipeline:
 
         # training parameter
         self.model_type = model_type
+        self.model = model_path  # if already fine-tuned. If None, then auto-inferred
         self._epochs = epochs
         self._lr0 = 0.01
         self._batch = batch_size
-        self.model = model_path  # if already fine-tuned model path
+        self._names: str | None = None  # incremental folder name, assign foreach train
 
         # resources
         if use_gpu:
@@ -85,7 +87,7 @@ class YoloUltralyticsPipeline:
             self.clone_png_dir()
             self.gen_yaml()
             self.gen_label_txt(debug_mode=False)
-            self.model = self.yolo_train(model_type=self.model_type)
+            self.yolo_train(model_type=self.model_type)
 
         self.yolo_predict(self.model)
         self.create_predicted_csv()
@@ -96,7 +98,7 @@ class YoloUltralyticsPipeline:
 
     def clone_png_dir(self) -> None:
         """Clone batch raw .npy files to png in a separated folder, image resize if needed"""
-        fprint('<STATE 1> -> clone dir')
+        fprint('<STATE 1> -> clone png dir')
 
         _clone_png_dir(self.image_dir.train_img, self.resize_dim)
         _clone_png_dir(self.image_dir.train_seg, self.resize_dim)
@@ -131,13 +133,14 @@ class YoloUltralyticsPipeline:
                 config = yaml.safe_load(file)
                 pprint(config)
 
-    def gen_label_txt(self, debug_mode: bool = True) -> None:
+    def gen_label_txt(self, debug_mode: bool = True, min_area: int = 500) -> None:
         """
         Detect the object edge from seg files and generate the yolov8 required label file for train dataset ::
 
         <class_id> <xc> <y_center> <width> <height>
 
         :param debug_mode: debug mode to see the train dataset segmentation result
+        :param min_area: minimum area threshold to consider an object. smaller areas are ignored
         :return:
         """
         fprint('<STATE 3> -> auto annotate segmentation file and generate label txt')
@@ -157,7 +160,7 @@ class YoloUltralyticsPipeline:
             if self.resize_dim is not None:
                 im = cv2.resize(im, dsize=self.resize_dim, interpolation=cv2.INTER_NEAREST)
 
-            detected = detect_segmented_objects(im)
+            detected = detect_segmented_objects(im, min_area=min_area)
 
             if debug_mode:
                 fprint(f'IMAGE -> {seg.stem}')
@@ -198,34 +201,34 @@ class YoloUltralyticsPipeline:
                                  output_dir=self.image_dir.train_img_png)
 
     def yolo_train(self, model_type: YOLO8_MODEL_TYPE = 'yolov8n',
-                   save: bool = True) -> YOLO:
+                   save: bool = True) -> None:
         """Load a pretrained model for training"""
         fprint(f'<STATE 4> -> Train the dataset using {model_type}')
         model_path = (self.image_dir.run_dir / model_type).with_suffix('.pt')
         model = YOLO(model_path)
 
         model.train(data=self.image_dir.root_dir / 'dataset.yml',
-                    # device=self._device,
+                    device=self._device,
                     batch=self._batch,
                     lr0=self._lr0,
                     project=self.image_dir.run_dir,
                     epochs=self._epochs,
                     cache=True)
 
-        model.val()
+        self._names = model.overrides['name']
 
         if save:
             model.export(format='onnx')
 
-        return model
-
-    def yolo_predict(self, model: YOLO | str,
+    def yolo_predict(self, model_path: Path | str | None = None,
                      save_plot: bool = True,
                      save_txt: bool = True):
         fprint('<STATE 5> -> Predicted result using test dataset')
-        if isinstance(model, (Path, str)):
-            model = YOLO(model)
 
+        if model_path is None:
+            model_path = self.image_dir.get_model_weights(self._names) / 'best.pt'
+
+        model = YOLO(model_path)
         model.predict(source=self.image_dir.test_img_png,
                       save=save_plot,
                       save_txt=save_txt,
@@ -278,7 +281,7 @@ def _clone_png_dir(directory: Path | str,
     iter_file = tqdm(files,
                      total=len(files),
                      unit='file',
-                     desc=f'clone <{directory}> to png in <{dst}>')
+                     desc=f'npy clone and resize as png to {dst}')
 
     for file in iter_file:
         img = np.load(file)

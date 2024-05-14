@@ -1,8 +1,11 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
+
 from imgcls.io import ImageClsDir
-from imgcls.util import uglob, fprint
+from imgcls.util import uglob
 
 __all__ = ['plot_image_seg',
            'dir_ipy_imshow']
@@ -36,37 +39,37 @@ def plot_image_seg(img_dir: ImageClsDir, index_range: tuple[int, int]):
     plt.show()
 
 
-def dir_ipy_imshow(img_dir: ImageClsDir):
+def dir_ipy_imshow(directory: Path | str,
+                   pattern: str = '*.png'):
     """
+    Display images from a directory with a button to load the next image
 
-    :param img_dir:
+    :param directory: directory contain image sequences
+    :param pattern: glob pattern in the directory
+    :param
     :return:
     """
     from IPython.display import display
     from IPython.core.display_functions import clear_output
     import ipywidgets as widgets
 
-    files = list(img_dir.predict_dir.glob('*.png'))
-    files = iter(sorted(files, key=lambda it: int(it.stem.split('_')[1])))
+    files = sorted(list(Path(directory).glob(pattern)), key=lambda it: int(it.stem.split('_')[1]))
+    iter_files = iter(files)
 
-    # for i, file in enumerate(files):
-    #     fprint(f'show -> {file.stem}')
-    #     img = Image.open(file)
-    #     display(img)
+    image_display = widgets.Image()
+    button = widgets.Button(description="Next Image")
 
     def on_button_clicked(b):
-        # Move to next image on button click
         try:
-            file = next(files)
-            img = Image.open(file)
-            fprint(f'show -> {file.stem}')
-            clear_output(wait=True)
-            display(img)
-            display(button)
+            file = next(iter_files)
         except StopIteration:
-            # If no more images, clear the output and remove the button
             clear_output(wait=True)
+        else:
+            with open(file, 'rb') as f:
+                img = f.read()
+            image_display.value = img
 
-    button = widgets.Button(description="Next Image")
     button.on_click(on_button_clicked)
+    display(button)
+    display(image_display)
     on_button_clicked(None)
