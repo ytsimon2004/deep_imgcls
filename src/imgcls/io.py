@@ -23,10 +23,10 @@ class ImageClsDir(NamedTuple):
         <root_dir>
         ├── dataset.yml (1)
         ├── run (2)
-        │   ├── predict
-        │   ├── test_set.csv
+        │   ├── predict*
+        │   │    └── test_set.csv (5)
         │   ├── train*
-        │   │    └── weights (5)
+        │   │    └── weights (6)
         │   └── *yolov8s.pt
         │
         ├── test (3)
@@ -47,7 +47,8 @@ class ImageClsDir(NamedTuple):
         (2) directory for model/train/evaluation output files
         (3) directory for test dataset
         (4) directory for train dataset
-        (5) store the fine-tuned model weights
+        (5) output results of classification
+        (6) store the fine-tuned model weights
 
     """
     root_dir: Path
@@ -106,13 +107,11 @@ class ImageClsDir(NamedTuple):
     def run_dir(self) -> Path:
         return self.root_dir / 'run'
 
-    @property
-    def predict_dir(self) -> Path:
-        return self.run_dir / 'predict'
+    def get_predict_dir(self, name: str) -> Path:
+        return self.run_dir / name
 
-    @property
-    def predict_label_dir(self) -> Path:
-        return self.predict_dir / 'labels'
+    def get_predict_label_dir(self, name: str) -> Path:
+        return self.get_predict_dir(name) / 'labels'
 
     def get_train_dir(self, name: str = 'train') -> Path:
         return self.run_dir / name

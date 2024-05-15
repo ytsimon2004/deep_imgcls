@@ -40,7 +40,7 @@ class YoloUltralyticsPipeline:
                  resize_dim: tuple[int, int] | None = None,
                  use_gpu: bool = False,
                  epochs: int = 10,
-                 batch_size: int = 128):
+                 batch_size: int = 32):
         """
 
         :param root_dir:
@@ -61,13 +61,14 @@ class YoloUltralyticsPipeline:
             for i in range(df.shape[1])
         }
 
-        # training parameter
+        # training/prediction parameters
         self.model_type = model_type
         self.model = model_path  # if already fine-tuned. If None, then auto-inferred
         self._epochs = epochs
         self._lr0 = 0.01
         self._batch = batch_size
-        self._names: str | None = None  # incremental folder name, assign foreach train
+        self._train_filename: str | None = None  # incremental folder name, assign foreach train
+        self._predict_filename: str | None = None  # incremental folder name, assign foreach predict
 
         # resources
         if use_gpu:
@@ -95,6 +96,18 @@ class YoloUltralyticsPipeline:
     @property
     def n_test(self) -> int:
         return len(list(self.image_dir.test_img_png.glob('*.png')))
+
+    @property
+    def train_filename(self) -> str:
+        if self._train_filename is None:
+            raise RuntimeWarning('run model train first')
+        return self._train_filename
+
+    @property
+    def predict_filename(self) -> str:
+        if self._predict_filename is None:
+            raise RuntimeWarning('run model predict first')
+        return self._predict_filename
 
     def clone_png_dir(self) -> None:
         """Clone batch raw .npy files to png in a separated folder, image resize if needed"""
@@ -215,7 +228,7 @@ class YoloUltralyticsPipeline:
                     epochs=self._epochs,
                     cache=True)
 
-        self._names = model.overrides['name']
+        self._train_filename = model.overrides['name']
 
         if save:
             model.export(format='onnx')
@@ -226,7 +239,7 @@ class YoloUltralyticsPipeline:
         fprint('<STATE 5> -> Predicted result using test dataset')
 
         if model_path is None:
-            model_path = self.image_dir.get_model_weights(self._names) / 'best.pt'
+            model_path = self.image_dir.get_model_weights(self._train_filename) / 'best.pt'
 
         model = YOLO(model_path)
         model.predict(source=self.image_dir.test_img_png,
@@ -234,11 +247,13 @@ class YoloUltralyticsPipeline:
                       save_txt=save_txt,
                       project=self.image_dir.run_dir)
 
+        self._predict_filename = model.predictor.save_dir.name
+
     def create_predicted_csv(self) -> None:
         fprint('<STATE 6> -> Write predicted result to csv')
 
         ret = {}
-        for txt in self.image_dir.predict_label_dir.glob('test*.txt'):
+        for txt in self.image_dir.get_predict_label_dir(self.predict_filename).glob('test*.txt'):
             classes = set()
             with open(txt, 'r') as file:
                 for line in file:
@@ -261,7 +276,7 @@ class YoloUltralyticsPipeline:
             for cls in classes:
                 df[int(i), self.label_dict[int(cls)]] = 1
 
-        dst = self.image_dir.run_dir / 'test_set.csv'
+        dst = self.image_dir.get_predict_dir(self.predict_filename) / 'test_set.csv'
         df.write_csv(dst)
         fprint(f'Successful create result in {dst}', vtype='io')
 
