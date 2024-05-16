@@ -95,7 +95,7 @@ class YoloUltralyticsPipeline:
 
     @property
     def n_test(self) -> int:
-        return len(list(self.image_dir.test_img_png.glob('*.png')))
+        return len(list(self.image_dir.test_image_png.glob('*.png')))
 
     @property
     def train_filename(self) -> str:
@@ -113,9 +113,9 @@ class YoloUltralyticsPipeline:
         """Clone batch raw .npy files to png in a separated folder, image resize if needed"""
         fprint('<STATE 1> -> clone png dir')
 
-        _clone_png_dir(self.image_dir.train_img, self.resize_dim)
-        _clone_png_dir(self.image_dir.train_seg, self.resize_dim)
-        _clone_png_dir(self.image_dir.test_img)  # no need resize for prediction
+        _clone_png_dir(self.image_dir.train_image_source, self.resize_dim)
+        _clone_png_dir(self.image_dir.train_seg_source, self.resize_dim)
+        _clone_png_dir(self.image_dir.test_image_source)  # no need resize for prediction
 
     def gen_yaml(self, output: Path | str | None = None, verbose: bool = False) -> None:
         """
@@ -132,9 +132,9 @@ class YoloUltralyticsPipeline:
 
         dy = {
             'path': str(self.image_dir.root_dir),
-            'train': str(self.image_dir.train_img_png),
-            'val': str(self.image_dir.train_img_png),
-            'test': str(self.image_dir.test_img_png),
+            'train': str(self.image_dir.train_image_png),
+            'val': str(self.image_dir.train_image_png),
+            'test': str(self.image_dir.test_image_png),
             'names': self.label_dict
         }
 
@@ -158,7 +158,7 @@ class YoloUltralyticsPipeline:
         """
         fprint('<STATE 3> -> auto annotate segmentation file and generate label txt')
 
-        files = sorted(list(self.image_dir.train_seg.glob('*.npy')),
+        files = sorted(list(self.image_dir.train_seg_source.glob('*.npy')),
                        key=lambda it: int(it.stem.split('_')[1]))
 
         iter_seg = tqdm(files,
@@ -182,7 +182,7 @@ class YoloUltralyticsPipeline:
 
                 # query raw
                 _, _, idx = seg.stem.partition('_')
-                file = list(self.image_dir.train_img_png.glob(f'*_{idx}.png'))[0]
+                file = list(self.image_dir.train_image_png.glob(f'*_{idx}.png'))[0]
                 raw = Image.open(str(file))
                 ax[0].imshow(raw)
 
@@ -211,7 +211,7 @@ class YoloUltralyticsPipeline:
             #
             write_yolo_label_txt(seg, detected,
                                  self.resize_dim if self.resize_dim is not None else im.shape,
-                                 output_dir=self.image_dir.train_img_png)
+                                 output_dir=self.image_dir.train_image_png)
 
     def yolo_train(self, model_type: YOLO8_MODEL_TYPE = 'yolov8n',
                    save: bool = True) -> None:
@@ -242,7 +242,7 @@ class YoloUltralyticsPipeline:
             model_path = self.image_dir.get_model_weights(self._train_filename) / 'best.pt'
 
         model = YOLO(model_path)
-        model.predict(source=self.image_dir.test_img_png,
+        model.predict(source=self.image_dir.test_image_png,
                       save=save_plot,
                       save_txt=save_txt,
                       project=self.image_dir.run_dir)

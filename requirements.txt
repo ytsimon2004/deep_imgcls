@@ -7,3 +7,7 @@ polars
 opencv-python
 tqdm
 typing-extensions
+
+# interactive opt
+jupyterlab
+notebook

@@ -59,45 +59,49 @@ class ImageClsDir(NamedTuple):
         p.mkdir(exist_ok=True)
         return p
 
+    # ============= #
+    # Train Dataset #
+    # ============= #
+
     @property
-    def train_dir(self) -> Path:
+    def train_data_dir(self) -> Path:
         return self.root_dir / 'train'
 
     @property
-    def train_img(self) -> Path:
-        return self.train_dir / 'img'
+    def train_image_source(self) -> Path:
+        return self.train_data_dir / 'img'
 
     @property
-    def train_img_png(self) -> Path:
-        return self.ensure_dir(self.train_dir / 'img_png')
+    def train_image_png(self) -> Path:
+        return self.ensure_dir(self.train_data_dir / 'img_png')
 
     @property
-    def train_seg(self) -> Path:
-        return self.train_dir / 'seg'
+    def train_seg_source(self) -> Path:
+        return self.train_data_dir / 'seg'
 
     @property
     def train_seg_png(self) -> Path:
-        return self.ensure_dir(self.train_dir / 'seg_png')
+        return self.ensure_dir(self.train_data_dir / 'seg_png')
 
     @property
     def train_dataframe(self) -> pl.DataFrame:
-        return pl.read_csv(self.train_dir / 'train_set.csv')
+        return pl.read_csv(self.train_data_dir / 'train_set.csv')
 
     # ============ #
     # Test Dataset #
     # ============ #
 
     @property
-    def test_dir(self) -> Path:
+    def test_data_dir(self) -> Path:
         return self.root_dir / 'test'
 
     @property
-    def test_img(self) -> Path:
-        return self.test_dir / 'img'
+    def test_image_source(self) -> Path:
+        return self.test_data_dir / 'img'
 
     @property
-    def test_img_png(self) -> Path:
-        return self.ensure_dir(self.test_dir / 'img_png')
+    def test_image_png(self) -> Path:
+        return self.ensure_dir(self.test_data_dir / 'img_png')
 
     # ================ #
     # Model Train/Eval #
