@@ -71,6 +71,7 @@ class YoloUltralyticsPipeline:
         self._predict_filename: str | None = None  # incremental folder name, assign foreach predict
 
         # resources
+        self._device = None  # torch.device('cpu')?
         if use_gpu:
             if torch.cuda.is_available():
                 fprint('Process using cuda GPU')
@@ -79,8 +80,9 @@ class YoloUltralyticsPipeline:
                 fprint('Process using mps GPU')
                 self._device = torch.device('mps')
                 self._lr0 = 0.00025
-        else:
-            self._device = None  # torch.device('cpu')?
+            else:
+                fprint('none acceleration backend found', vtype='warning')
+
 
     def run(self):
         # if fine-tuned model already specified

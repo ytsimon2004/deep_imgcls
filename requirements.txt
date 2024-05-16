@@ -7,3 +7,9 @@ polars
 opencv-python
 tqdm
 typing-extensions
+numpy~=1.26.0
+colorama
+
+# interactive opt
+jupyterlab
+notebook
