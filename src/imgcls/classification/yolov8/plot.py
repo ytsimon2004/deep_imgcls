@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -50,7 +52,7 @@ def dir_ipy_imshow(directory: Path | str,
     :return:
     """
     from IPython.display import display
-    from IPython.core.display_functions import clear_output
+    from IPython.core.display import clear_output
     import ipywidgets as widgets
 
     files = sorted(list(Path(directory).glob(pattern)), key=lambda it: int(it.stem.split('_')[1]))

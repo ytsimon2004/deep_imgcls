@@ -1,6 +1,13 @@
 from pathlib import Path
 from pprint import pprint
-from typing import final, TypeAlias, Final, Literal
+from typing import final, Final, Literal
+
+import sys
+
+if sys.version_info >= (3, 10):
+    from typing import TypeAlias
+else:
+    from typing_extensions import TypeAlias
 
 import cv2
 import numpy as np
@@ -82,7 +89,6 @@ class YoloUltralyticsPipeline:
                 self._lr0 = 0.00025
             else:
                 fprint('none acceleration backend found', vtype='warning')
-
 
     def run(self):
         # if fine-tuned model already specified
