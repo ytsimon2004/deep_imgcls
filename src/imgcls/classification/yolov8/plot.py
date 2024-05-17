@@ -27,7 +27,7 @@ def plot_image_seg(img_dir: ImageClsDir, index_range: tuple[int, int]):
 
     for i, idx in enumerate(np.arange(*index_range)):
         pattern = f'train_{idx}.png'
-        img = uglob(img_dir.train_img_png, pattern)
+        img = uglob(img_dir.train_image_png, pattern)
         seg = uglob(img_dir.train_seg_png, pattern)
 
         ax[0, i].imshow(Image.open(str(img)))
