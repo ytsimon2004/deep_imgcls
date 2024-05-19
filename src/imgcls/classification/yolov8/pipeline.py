@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pathlib import Path
 from pprint import pprint
 from typing import final, Final, Literal
