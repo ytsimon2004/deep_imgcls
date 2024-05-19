@@ -13,3 +13,6 @@ colorama
 # interactive opt
 jupyterlab
 notebook
+
+# attack
+torchattacks

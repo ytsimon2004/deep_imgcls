@@ -42,13 +42,12 @@ def plot_image_seg(img_dir: ImageClsDir, index_range: tuple[int, int]):
 
 
 def dir_ipy_imshow(directory: Path | str,
-                   pattern: str = '*.png'):
+                   pattern: str = '*.png') -> None:
     """
     Display images from a directory with a button to load the next image
 
     :param directory: directory contain image sequences
     :param pattern: glob pattern in the directory
-    :param
     :return:
     """
     from IPython.display import display

@@ -50,10 +50,10 @@ class YoloUltralyticsPipeline:
                  batch_size: int = 32):
         """
 
-        :param root_dir:
+        :param root_dir: `SOURCE_ROOT_DIR`. aka. input data source
         :param model_type: {'yolov8n', 'yolov8s', 'yolov8m', 'yolov8l', 'yolov8x'}
         :param model_path: model path (If already trained)
-        :param resize_dim: (w,h) resize
+        :param resize_dim: (w,h) resize for image
         :param use_gpu: whether use gpu for fine-tuned the model
         :param epochs: number of the training epoch
         :param batch_size: training bathc size
@@ -97,9 +97,12 @@ class YoloUltralyticsPipeline:
             self.gen_yaml()
             self.gen_label_txt(debug_mode=False)
             self.yolo_train(model_type=self.model_type)
+            self.yolo_predict(self.predict_filename)
+            self.create_predicted_csv()
 
-        self.yolo_predict(self.model)
-        self.create_predicted_csv()
+        else:
+            self.yolo_predict(self.model)
+            self.create_predicted_csv()
 
     @property
     def n_test(self) -> int:
@@ -121,9 +124,9 @@ class YoloUltralyticsPipeline:
         """Clone batch raw .npy files to png in a separated folder, image resize if needed"""
         fprint('<STATE 1> -> clone png dir')
 
-        _clone_png_dir(self.image_dir.train_image_source, self.resize_dim)
-        _clone_png_dir(self.image_dir.train_seg_source, self.resize_dim)
-        _clone_png_dir(self.image_dir.test_image_source)  # no need resize for prediction
+        clone_png_dir(self.image_dir.train_image_source, self.resize_dim)
+        clone_png_dir(self.image_dir.train_seg_source, self.resize_dim)
+        clone_png_dir(self.image_dir.test_image_source)  # no need resize for prediction
 
     def gen_yaml(self, output: Path | str | None = None, verbose: bool = False) -> None:
         """
@@ -244,6 +247,14 @@ class YoloUltralyticsPipeline:
     def yolo_predict(self, model_path: Path | str | None = None,
                      save_plot: bool = True,
                      save_txt: bool = True):
+        """
+        Do the model prediction
+
+        :param model_path: If None, use directly the last train model. Otherwise, specify the model path directly
+        :param save_plot: Save predict plot
+        :param save_txt: Save the predict txt (DetectClassSquare for each image)
+        :return:
+        """
         fprint('<STATE 5> -> Predicted result using test dataset')
 
         if model_path is None:
@@ -257,7 +268,7 @@ class YoloUltralyticsPipeline:
 
         self._predict_filename = model.predictor.save_dir.name
 
-    def create_predicted_csv(self) -> None:
+    def create_predicted_csv(self, verbose: bool = True) -> pl.DataFrame:
         fprint('<STATE 6> -> Write predicted result to csv')
 
         ret = {}
@@ -288,9 +299,14 @@ class YoloUltralyticsPipeline:
         df.write_csv(dst)
         fprint(f'Successful create result in {dst}', vtype='io')
 
+        if verbose:
+            print(df)
 
-def _clone_png_dir(directory: Path | str,
-                   resize_dim: tuple[int, int] | None = None) -> None:
+        return df
+
+
+def clone_png_dir(directory: Path | str,
+                  resize_dim: tuple[int, int] | None = None) -> None:
     """Clone batch raw .npy files to png in a separated folder, image resize if needed
 
     :param directory: directory contains .npy files
@@ -363,6 +379,17 @@ def write_yolo_label_txt(img_filepath: str | Path,
                          detected: DetectClassSquare,
                          img_dim: tuple[int, int],
                          output_dir: str | Path) -> None:
+    """
+    Write detected object as yolov8 required label file for train dataset ::
+
+        <class_id> <xc> <y_center> <width> <height>
+
+    :param img_filepath: image filepath
+    :param detected: `DetectClassSquare`
+    :param img_dim: image dimension
+    :param output_dir: txt output directory
+    :return:
+    """
     filename = Path(img_filepath).stem
     out = (Path(output_dir) / filename).with_suffix('.txt')
 

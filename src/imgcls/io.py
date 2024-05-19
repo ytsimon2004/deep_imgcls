@@ -16,29 +16,33 @@ TEST_DIR = CACHE_DIRECTORY / 'test'
 
 
 class ImageClsDir(NamedTuple):
-    """Class for folder structure for train/test data
+    """Class for folder structure for train/test dataset and model/prediction output
 
     DataFolder Structure ::
 
         <root_dir>
         ├── dataset.yml (1)
-        ├── run (2)
-        │   ├── predict*
-        │   │    └── test_set.csv (5)
-        │   ├── train*
-        │   │    └── weights (6)
-        │   └── *yolov8s.pt
+        ├── runs/ (2)
+        │   └── detect
+        │         ├── predict*
+        │         │    ├── labels/
+        │         │    ├── test_*.png
+        │         │    └── test_set.csv (5)
+        │         ├── train*
+        │         │    ├── <yolo outputs>
+        │         │    └── weights/ (6)
+        │         └── *yolov8s.pt
         │
-        ├── test (3)
-        │   ├── img
-        │   ├── img_png
+        ├── test/ (3)
+        │   ├── img/
+        │   ├── img_png/
         │   └── test_set.csv
         │
         └── train (4)
-            ├── img
-            ├── img_png
-            ├── seg
-            ├── seg_png
+            ├── img/
+            ├── img_png/
+            ├── seg/
+            ├── seg_png/
             └── train_set.csv
 
         ---------------------------
@@ -109,7 +113,7 @@ class ImageClsDir(NamedTuple):
 
     @property
     def run_dir(self) -> Path:
-        return self.root_dir / 'run'
+        return self.root_dir / 'runs' / 'detect'
 
     def get_predict_dir(self, name: str) -> Path:
         return self.run_dir / name
