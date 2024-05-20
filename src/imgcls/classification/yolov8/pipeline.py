@@ -5,6 +5,8 @@ from typing import final, Final, Literal
 
 import sys
 
+import pandas as pd
+
 if sys.version_info >= (3, 10):
     from typing import TypeAlias
 else:
@@ -57,7 +59,7 @@ class YoloUltralyticsPipeline:
         :param resize_dim: (w,h) resize for image
         :param use_gpu: whether use gpu for fine-tuned the model
         :param epochs: number of the training epoch
-        :param batch_size: training bathc size
+        :param batch_size: training batch size
         """
         self.image_dir = ImageClsDir(root_dir)
         self.resize_dim = resize_dim
@@ -105,6 +107,7 @@ class YoloUltralyticsPipeline:
             self.yolo_predict(self.model)
             self.create_predicted_csv()
 
+
     @property
     def n_test(self) -> int:
         return len(list(self.image_dir.test_image_png.glob('*.png')))
@@ -120,6 +123,20 @@ class YoloUltralyticsPipeline:
         if self._predict_filename is None:
             raise RuntimeWarning('run model predict first')
         return self._predict_filename
+
+    @property
+    def cur_train_dir(self) -> Path:
+        """current train directory"""
+        return self.image_dir.get_train_dir(self.train_filename)
+
+    @property
+    def cur_predict_dir(self) -> Path:
+        return self.image_dir.get_predict_dir(self.predict_filename)
+
+    @property
+    def cur_predict_label_dir(self) -> Path:
+        return self.image_dir.get_predict_label_dir(self.predict_filename)
+
 
     def clone_png_dir(self) -> None:
         """Clone batch raw .npy files to png in a separated folder, image resize if needed"""
@@ -273,7 +290,7 @@ class YoloUltralyticsPipeline:
         fprint('<STATE 6> -> Write predicted result to csv')
 
         ret = {}
-        for txt in self.image_dir.get_predict_label_dir(self.predict_filename).glob('test*.txt'):
+        for txt in self.cur_predict_label_dir.glob('test*.txt'):
             classes = set()
             with open(txt, 'r') as file:
                 for line in file:
@@ -296,7 +313,7 @@ class YoloUltralyticsPipeline:
             for cls in classes:
                 df[int(i), self.label_dict[int(cls)]] = 1
 
-        dst = self.image_dir.get_predict_dir(self.predict_filename) / 'test_set.csv'
+        dst = self.cur_predict_dir / 'test_set.csv'
         df.write_csv(dst)
         fprint(f'Successful create result in {dst}', vtype='io')
 
@@ -304,6 +321,33 @@ class YoloUltralyticsPipeline:
             print(df)
 
         return df
+
+    # ============================================== #
+    # Visualization of Intermediate Training Metrics #
+    # ============================================== #
+
+    @classmethod
+    def _fig_show(cls, p, size):
+        fig = Image.open(p)
+        plt.figure(figsize=size)
+        plt.imshow(fig)
+        plt.axis('off')
+
+    @classmethod
+    def show_confusion_matrix(cls, train_dir: Path | str):
+        p = Path(train_dir) / 'confusion_matrix_normalized.png'
+        cls._fig_show(p, (10, 10))
+
+    @classmethod
+    def show_epochs_progress(cls, train_dir: Path | str):
+        p = Path(train_dir) / 'results.png'
+        cls._fig_show(p, (10, 5))
+
+    @classmethod
+    def get_epochs_progress_dataframe(cls, train_dir: Path | str) -> pl.DataFrame:
+        p = Path(train_dir) / 'results.csv'
+        df = pd.read_csv(p)  # casting purpose
+        return pl.from_pandas(df)
 
 
 def clone_png_dir(directory: Path | str,
