@@ -17,7 +17,7 @@ class YoloBoxes(NamedTuple):
     xywh: torch.Tensor
     xywhn: torch.Tensor
     xyxy: torch.Tensor
-    xyxyn: torch.T
+    xyxyn: torch.Tensor
 
 
 def extract_yolo_predict_box(predict_result: list[Results]) -> YoloBoxes:

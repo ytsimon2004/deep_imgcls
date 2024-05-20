@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Literal, get_args, Callable
 
@@ -7,11 +9,10 @@ from PIL import Image
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import transforms, datasets
-from typing_extensions import Self
 from ultralytics import YOLO
 
 from imgcls.classification.yolov8.util import extract_yolo_predict_box
-from imgcls.io import ImageClsDir, CACHE_DIRECTORY
+from imgcls.io import ImageClsDir
 
 ATTACK_TYPE = Literal[
     "PGD",
@@ -227,7 +228,7 @@ def main():
 
     opt = ap.parse_args()
 
-    atk = AdversarialAttack(opt.model, opt.dataset, opt.atk_type)
+    atk = AdversarialAttack(opt.model, opt.data, opt.atk_type)
     atk.train()
     atk.evaluate(opt.predict)
 
