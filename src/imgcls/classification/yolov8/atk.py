@@ -210,19 +210,26 @@ class AdversarialAttack:
 
 
 def main():
-    # import argparse
-    #
-    # ap = argparse.ArgumentParser(description='adversarial attack for a YOLO model')
-    #
-    # ap.add_argument('--model', metavar='PATH', type=str, required=True, help='model path')
-    # ap.add_argument('--data')
+    import argparse
 
-    model = '/Users/yuting/.cache/comvis/imgcls/archive/run/train3/weights/best.pt'
-    dataset = '/Users/yuting/.cache/comvis/imgcls/test/img_png'
-    atk_type = 'PGD'
-    atk = AdversarialAttack(model, dataset, atk_type)
+    ap = argparse.ArgumentParser(description='adversarial attack for a YOLO model')
+
+    # train arg
+    ap.add_argument('--model', metavar='PATH', type=str, required=True, help='model path')
+    ap.add_argument('--data', metavar='PATH', type=str, required=True, help='dataset path for train adversarial model')
+    ap.add_argument('--atk-type', type=str, choices=get_args(ATTACK_TYPE), default='PGD', help='attack type',
+                    dest='atk_type')
+
+    # TODO kwarg if need
+
+    # test arg
+    ap.add_argument('--predict', metavar='PATH', type=str, required=True, help='test image path')
+
+    opt = ap.parse_args()
+
+    atk = AdversarialAttack(opt.model, opt.dataset, opt.atk_type)
     atk.train()
-    # atk.evaluate('/Users/yuting/.cache/comvis/imgcls/test/img_png/test_0.png')
+    atk.evaluate(opt.predict)
 
 
 if __name__ == '__main__':
