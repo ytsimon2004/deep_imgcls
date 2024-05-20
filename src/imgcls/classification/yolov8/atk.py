@@ -10,6 +10,7 @@ from torchvision import transforms, datasets
 from typing_extensions import Self
 from ultralytics import YOLO
 
+from imgcls.classification.yolov8.util import extract_yolo_predict_box
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
 
 ATTACK_TYPE = Literal[
@@ -172,9 +173,10 @@ class AdversarialAttack:
 
                 # Get predictions from the classifier
                 outputs = self.model(adv_images)
+                cls = extract_yolo_predict_box(outputs).cls
 
                 # Compute the adversarial loss
-                loss = self.criterion(outputs, labels)
+                loss = self.criterion(cls, labels)
 
                 # Backpropagation and optimization
                 self.optimizer.zero_grad()
