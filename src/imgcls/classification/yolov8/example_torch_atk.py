@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from pathlib import Path
 from typing import Literal, get_args
 
 import matplotlib.pyplot as plt
@@ -9,6 +11,7 @@ import torch
 import torchattacks
 import torchvision
 import torchvision.datasets as dsets
+from PIL import Image
 from matplotlib.axes import Axes
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -135,6 +138,35 @@ def get_accuracy(model, data_loader, atk=None, n_limit=1e10, device=None):
 
     return 100 * float(correct) / total
 
+# =================== #
+
+def create_image_tensor(image_dir: Path, image_size=(224, 224)):
+    """Create a tensor from images in a specified directory"""
+    image_dir = Path(image_dir)
+
+    # List all files in the directory
+    image_files = sorted(list(image_dir.glob('*.png')), key=lambda it: int(it.stem.split('_')[1]))
+
+    # Transformation to apply to each image (resize and convert to tensor)
+    transform = transforms.Compose([
+        transforms.Resize(image_size),  # Resize to the specified size
+        transforms.ToTensor()  # Convert to a tensor
+    ])
+
+    # List to hold all image tensors
+    image_tensors = []
+
+    # Loop through each file, open, transform, and add to list
+    for image_file in image_files:
+        image = Image.open(image_file).convert('RGB')  # Ensure 3 channels
+        image_tensor = transform(image)
+        image_tensors.append(image_tensor)
+
+    # Stack all image tensors into a single tensor
+    images_tensor = torch.stack(image_tensors)
+
+    return images_tensor
+
 
 def do_adversarial_attack(img_dir: ImageClsDir,
                           name: str,
@@ -150,7 +182,7 @@ def do_adversarial_attack(img_dir: ImageClsDir,
     :return:
     """
     model_path = img_dir.get_model_weights(name) / 'best.pt'
-    model = YOLO(model_path).model
+    model = YOLO(model_path)
 
     try:
         atk_func = getattr(torchattacks, attack_type)
@@ -158,10 +190,15 @@ def do_adversarial_attack(img_dir: ImageClsDir,
         raise RuntimeError(f'unknown attack type: {attack_type}, choose from {get_args(ATTACK_TYPE)}')
 
     atk = atk_func(model, eps=epsilon, alpha=2 / 225, steps=10, random_start=True)
-    print(atk)
+    images = create_image_tensor(img_dir.train_image_png)
+    labels = torch.tensor(img_dir.train_dataframe.drop('Id').to_numpy())
 
-    for img in img_dir.test_image_png.glob('*png'):
-        pass
+    adv_images = atk(images, labels)
+    # TODO TypeError: cross_entropy_loss(): argument 'input' (position 1) must be Tensor, not tuple
+    # FIXME likely due to ultralytics.YOLO
+
+    fig, ax = plt.subplots()
+    tensor_imshow(adv_images[0], ax=ax)
 
 
 if __name__ == '__main__':

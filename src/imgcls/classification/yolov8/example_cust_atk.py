@@ -1,4 +1,5 @@
 import os
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import torch
@@ -16,7 +17,12 @@ from imgcls.util import fprint
 
 
 class AdversarialAutoencoder(nn.Module):
+    """Adversarial Autoencoder with a simple convolutional encoder and decoder"""
+
     def __init__(self, input_shape: tuple[int, int, int]) -> None:
+        """
+        :param input_shape: Shape of the input image (channels, height, width)
+        """
         super().__init__()
         self.encoder = nn.Sequential(
             nn.Conv2d(input_shape[0], 64, kernel_size=4, stride=2, padding=1),
@@ -32,6 +38,12 @@ class AdversarialAutoencoder(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the autoencoder
+
+        :param x: Input image tensor
+        :return:
+        """
         x = self.encoder(x)
         x = self.decoder(x)
         return x
@@ -44,11 +56,12 @@ class AdversarialAttackModel:
                  reg_weight: float = 0.1,
                  lr: float = 0.001):
         """
+        Model for creating adversarial attacks on YOLO models.
 
-        :param yolo_model:
-        :param input_shape:
-        :param reg_weight:
-        :param lr:
+        :param yolo_model: pre-trained YOLO model
+        :param input_shape: shape of the input images. Defaults to (3, 416, 416)
+        :param reg_weight: weight for the regularization term in the loss
+        :param lr: learning rate for the optimizer
         """
         self.yolo_model = yolo_model
         self.reg_weight = reg_weight
@@ -61,6 +74,7 @@ class AdversarialAttackModel:
         self.optimizer = optim.Adam(self.adversary.parameters(), lr=lr)
 
     def freeze_yolo_weights(self) -> None:
+        """freeze the weights of the YOLO model to prevent them from being updated during training"""
         for param in self.yolo_model.parameters():
             param.requires_grad = False  # Freeze YOLO model parameters
 
@@ -68,8 +82,13 @@ class AdversarialAttackModel:
                          y_pred: torch.Tensor,
                          y_true: torch.Tensor,
                          perturbation: torch.Tensor) -> torch.Tensor:
-        fprint(f'{y_pred=}, {y_pred.shape=}')
-        fprint(f'{y_true=}, {y_true.shape=}', vtype='io')
+        """Compute the adversarial loss, which is a combination of classification loss and regularization loss
+
+        :param y_pred: predicted labels from the YOLO model
+        :param y_true: true labels
+        :param perturbation: perturbation added to the input image
+
+        """
         classification_loss = self.criterion(y_pred, y_true)
         reg_loss = torch.norm(perturbation, p=2)  # L2 norm
         return classification_loss + self.reg_weight * reg_loss
@@ -77,6 +96,13 @@ class AdversarialAttackModel:
     def train(self,
               dataloader: DataLoader,
               num_epochs: int) -> None:
+        """
+        train the adversarial attack model
+
+        :param dataloader: Dataloader for the training data
+        :param num_epochs: number of epochs to train for
+        :return:
+        """
         self.adversary.train()
 
         for epoch in range(num_epochs):
@@ -102,6 +128,12 @@ class AdversarialAttackModel:
                 self.optimizer.step()
 
     def evaluate(self, test_dataloader: DataLoader) -> None:
+        """
+        evaluate the adversarial attack model
+
+        :param test_dataloader: Dataloader for the test data.
+        :return:
+        """
         self.adversary.eval()
         with torch.no_grad():
             for test_images, test_labels in test_dataloader:
@@ -112,6 +144,12 @@ class AdversarialAttackModel:
                 # Calculate and print evaluation metrics
 
     def visualize_examples(self, images: torch.Tensor) -> None:
+        """
+        visualize examples of original, perturbed, and adversarial images.
+
+        :param images: Batch of images to visualize
+        :return:
+        """
         self.adversary.eval()
         with torch.no_grad():
             images = images.to(self.device)
@@ -125,6 +163,15 @@ class AdversarialAttackModel:
     def show_images(original: torch.Tensor,
                     perturbation: torch.Tensor,
                     perturbed: torch.Tensor) -> None:
+        """
+        display the original, perturbation, and perturbed images side by side
+
+        :param original: Original image
+        :param perturbation: Perturbation image
+        :param perturbed:
+        :return:
+        """
+
         fig, ax = plt.subplots(1, 3)
         ax[0].imshow(original.permute(1, 2, 0).numpy())
         ax[0].set_title('Original')
@@ -136,7 +183,9 @@ class AdversarialAttackModel:
 
 
 class TestDataset(Dataset):
-    def __init__(self, root: str, transform=None):
+    """Custom dataset for loading images from a director"""
+
+    def __init__(self, root: str, transform: Callable | None = None):
         self.root_dir = root
         self.transform = transform
         self.image_paths = [os.path.join(root, img) for img in os.listdir(root) if img.endswith(('jpg', 'jpeg', 'png'))]
@@ -169,7 +218,6 @@ def main():
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=False, num_workers=4)
     test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
 
-    # train_dataloader = DataLoader()
 
     model = AdversarialAttackModel(yolo_model)
     model.train(train_dataloader, num_epochs=100)
