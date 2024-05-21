@@ -1,12 +1,11 @@
 import os
 
-import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
-import matplotlib.pyplot as plt
 from torchvision import datasets
 from torchvision.transforms import transforms
 from ultralytics import YOLO
@@ -94,15 +93,11 @@ class AdversarialAttackModel:
                 for i in range(32):
                     perturbed_img = perturbed_images[i].unsqueeze(0)
                     out = extract_yolo_predict_box(self.yolo_model(perturbed_img))
-                    loss = self.adversarial_loss(out[0].cls, labels[i], perturbations[i])
-                    fprint(f'{loss=}')
-                    total_loss += loss
 
-                # out = extract_yolo_predict_box(self.yolo_model(perturbed_images))
-                # for i, yolo_predictions in enumerate(out):
-                #     yolo_predictions_data = yolo_predictions.data
-                #     loss = self.adversarial_loss(yolo_predictions_data, labels[i], perturbations[i])
-                #     loss.backward()
+                    if out[0].cls.nelement() != 0 and labels[i].nelement() != 0:
+                        loss = self.adversarial_loss(out[0].cls, labels[i], perturbations[i])
+                        total_loss += loss
+
                 total_loss.backward()
                 self.optimizer.step()
 
@@ -166,7 +161,7 @@ def main():
     trans = transforms.Compose([
         transforms.Resize((416, 416)),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, ), (0.5,))
+        transforms.Normalize((0.5,), (0.5,))
     ])
     train_dataset = datasets.ImageFolder(root=dataset_src.attack_train_dir, transform=trans)
     test_dataset = TestDataset(root=dataset_src.attack_test_dir, transform=trans)
@@ -177,7 +172,7 @@ def main():
     # train_dataloader = DataLoader()
 
     model = AdversarialAttackModel(yolo_model)
-    model.train(train_dataloader, num_epochs=10)
+    model.train(train_dataloader, num_epochs=100)
     model.evaluate(test_dataloader)
 
     for test_images, _ in test_dataloader:
