@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
 from typing import Literal, get_args
 
@@ -13,7 +11,6 @@ import torchvision
 import torchvision.datasets as dsets
 from PIL import Image
 from matplotlib.axes import Axes
-from torch.utils.data import DataLoader
 from torchvision import transforms
 from ultralytics import YOLO
 
@@ -137,6 +134,7 @@ def get_accuracy(model, data_loader, atk=None, n_limit=1e10, device=None):
             break
 
     return 100 * float(correct) / total
+
 
 # =================== #
 

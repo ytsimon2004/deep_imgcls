@@ -1,9 +1,9 @@
 from __future__ import annotations
+
+import sys
 from pathlib import Path
 from pprint import pprint
 from typing import final, Final, Literal
-
-import sys
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias

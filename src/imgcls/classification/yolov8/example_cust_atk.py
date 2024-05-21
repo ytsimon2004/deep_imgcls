@@ -13,7 +13,6 @@ from ultralytics import YOLO
 
 from imgcls.classification.yolov8.util import extract_yolo_predict_box
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
-from imgcls.util import fprint
 
 
 class AdversarialAutoencoder(nn.Module):
@@ -217,7 +216,6 @@ def main():
 
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=False, num_workers=4)
     test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
-
 
     model = AdversarialAttackModel(yolo_model)
     model.train(train_dataloader, num_epochs=100)
