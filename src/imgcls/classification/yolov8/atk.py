@@ -132,12 +132,15 @@ class AdversarialAttack:
         :param eps:
         """
         self.model = YOLO(model_path)
-        #
+
+        # CNN
         self._batch_size = batch_size
         self._image_size = image_size
         self._lr = lr
         self._eps = eps
         self._epochs = epochs
+
+        #
         self.transform = transforms.Compose([
             transforms.Resize(self._image_size),
             transforms.ToTensor()
