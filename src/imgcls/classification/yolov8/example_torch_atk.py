@@ -179,8 +179,9 @@ def do_adversarial_attack(img_dir: ImageClsDir,
     :param epsilon: attack epsilon
     :return:
     """
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model_path = img_dir.get_model_weights(name) / 'best.pt'
-    model = YOLO(model_path)
+    model = YOLO(model_path).to(device)
 
     try:
         atk_func = getattr(torchattacks, attack_type)
@@ -193,7 +194,10 @@ def do_adversarial_attack(img_dir: ImageClsDir,
 
     adv_images = atk(images, labels)
     # TODO TypeError: cross_entropy_loss(): argument 'input' (position 1) must be Tensor, not tuple
-    # FIXME likely due to ultralytics.YOLO
+    # likely due to ultralytics.YOLO do not return a tensor, but a list.(https://github.com/Harry24k/adversarial-attacks-pytorch/issues/175)
+    # To overcome this issue, need to change source code of torchattacks `torchattacks.attacks.<ATTACK_TYPE>.forward()`
+    # outputs = outputs[0].boxes.cls
+
 
     fig, ax = plt.subplots()
     tensor_imshow(adv_images[0], ax=ax)

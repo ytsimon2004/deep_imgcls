@@ -13,6 +13,7 @@ from ultralytics import YOLO
 
 from imgcls.classification.yolov8.util import extract_yolo_predict_box
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
+from imgcls.util import fprint
 
 
 class AdversarialAutoencoder(nn.Module):
@@ -115,12 +116,20 @@ class AdversarialAttackModel:
                 perturbed_images = torch.clamp(perturbed_images, 0, 1)
 
                 total_loss = torch.tensor(0.0)
-                for i in range(32):
+                batch_size = images.size(0)
+                for i in range(batch_size):
                     perturbed_img = perturbed_images[i].unsqueeze(0)
                     out = extract_yolo_predict_box(self.yolo_model(perturbed_img))
 
+                    # TODO transfer y_true to probability for each class
                     if out[0].cls.nelement() != 0 and labels[i].nelement() != 0:
-                        loss = self.adversarial_loss(out[0].cls, labels[i], perturbations[i])
+                        y_pred = out[0].cls
+                        y_true = labels[i]
+                        fprint(f'{y_pred=}, {y_true}=')
+                        # y_true_index = torch.nonzero(y_pred == y_true.item())[0]
+                        # fprint(f'{y_true_index=}')
+                        y_true_index = torch.tensor(0)
+                        loss = self.adversarial_loss(y_pred, y_true_index, perturbations[i])
                         total_loss += loss
 
                 total_loss.backward()
@@ -218,7 +227,7 @@ def main():
     test_dataloader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
 
     model = AdversarialAttackModel(yolo_model)
-    model.train(train_dataloader, num_epochs=100)
+    model.train(train_dataloader, num_epochs=10)
     model.evaluate(test_dataloader)
 
     for test_images, _ in test_dataloader:
