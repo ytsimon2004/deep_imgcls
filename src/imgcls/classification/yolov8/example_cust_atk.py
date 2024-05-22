@@ -11,7 +11,7 @@ from torchvision import datasets
 from torchvision.transforms import transforms
 from ultralytics import YOLO
 
-from imgcls.classification.yolov8.util import extract_yolo_predict_box
+from imgcls.classification.yolov8.util import extract_yolo_predict_box, create_attack_folder_structure
 from imgcls.io import ImageClsDir, CACHE_DIRECTORY
 from imgcls.util import fprint
 
@@ -214,6 +214,7 @@ def main():
     yolo_model = YOLO(model_file)
 
     dataset_src = ImageClsDir(CACHE_DIRECTORY)
+    create_attack_folder_structure(dataset_src)
 
     trans = transforms.Compose([
         transforms.Resize((416, 416)),
