@@ -210,8 +210,8 @@ class TestDataset(Dataset):
 
 
 def main():
-    file = '/Users/yuting/.cache/comvis/imgcls/epochs_100/weights/best.pt'
-    yolo_model = YOLO(file)
+    model_file = ...
+    yolo_model = YOLO(model_file)
 
     dataset_src = ImageClsDir(CACHE_DIRECTORY)
 
