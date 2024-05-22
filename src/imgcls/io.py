@@ -126,3 +126,22 @@ class ImageClsDir(NamedTuple):
 
     def get_model_weights(self, name: str = 'train') -> Path:
         return self.run_dir / name / 'weights'
+
+    # =================================== #
+    # Adversarial Attack (For DataLoader) #
+    # =================================== #
+
+    @property
+    def attack_dir(self) -> Path:
+        return self.ensure_dir(self.root_dir / 'attack_dataset')
+
+    @property
+    def attack_train_dir(self) -> Path:
+        return self.ensure_dir(self.attack_dir / 'train')
+
+    @property
+    def attack_test_dir(self) -> Path:
+        return self.ensure_dir(self.attack_dir / 'test')
+
+
+
